@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Decentragram from './abis/Decentragram.json'
 import {
     Grid,
     Typography,
@@ -111,6 +112,44 @@ function Post({ post, onLike, onComment }) {
 
 
 function App() {
+    const loadWeb3 = async() => {
+        if (window.ethereum) {
+          window.web3 = new Web3(window.ethereum)
+          await window.ethereum.enable()
+        }
+        else if (window.web3) {
+          window.web3 = new Web3(window.web3.currentProvider)
+        }
+        else {
+          window.alert('Non-Ethereum browser detected. You should consider trying MetaMask!')
+        }
+      }
+    const loadBlockchainData = async() => {
+        const web3 = window.web3
+        // Load account
+        const accounts = await web3.eth.getAccounts()
+        console.log(accounts);
+        // Create contract instance
+        const networkId = await web3.eth.net.getId();
+        const networkData = Decentragram.networks[networkId];
+        if (networkData) {
+            const contract = new web3.eth.Contract(Decentragram.abi, networkData.address);
+            
+            // Call the setNumber function
+            await contract.methods.setNumber(52).send({ from: accounts[0] });
+
+            // Call the myNumber function to check the updated value
+            const myNumber = await contract.methods.myNumber().call();
+            console.log('My Number:', myNumber);
+        } else {
+            window.alert('Decentragram contract not deployed to detected network.');
+        }
+    }
+    useEffect(() => {
+        loadWeb3();
+        loadBlockchainData();
+    }, []);
+
     const [file, setFile] = useState(null);
     const [description, setDescription] = useState("");
     const [posts, setPosts] = useState([]);
