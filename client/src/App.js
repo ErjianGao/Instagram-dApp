@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Decentragram from './abis/Decentragram.json'
 import {
   Grid,
   Typography,
