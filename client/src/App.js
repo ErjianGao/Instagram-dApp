@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import Decentragram from './abis/Decentragram.json'
 import {
   Grid,
   Typography,
@@ -13,6 +12,9 @@ import {
 import { makeStyles } from "@material-ui/core/styles";
 import Web3 from "web3";
 import Decentragram from "./abis/Decentragram.json";
+
+// const ipfsClient = require('ipfs-http-client');
+// const ipfs = ipfsClient({ host: 'ipfs.infura.io', port: 5001, protocol: 'https', headers: { authorization: '2OfXMmDhQUk4chI100O92945dNg' } });
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -49,7 +51,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-function Post({ post, onLike, onComment }) {
+function Post({ decentragram, post, onLike, onComment }) {
   const [comment, setComment] = useState("");
   const classes = useStyles();
 
@@ -70,16 +72,12 @@ function Post({ post, onLike, onComment }) {
       const web3 = new Web3(provider);
       const accounts = await web3.eth.getAccounts();
       const account = accounts[0];
-      
-      const networkId = await web3.eth.net.getId();
-      const networkData = Decentragram.networks[5777];
-      
-      if (networkData) {
-        const decentragram = new web3.eth.Contract(Decentragram.abi, networkData.address);
-        await decentragram.methods.tipPost(postId).send({ from: account, value: web3.utils.toWei(tipAmount, "ether") });
-      }
+
+      await decentragram.methods
+        .tipPost(postId)
+        .send({ from: account, value: web3.utils.toWei(tipAmount, "ether") });
     }
-  } 
+  };
 
   return (
     <Card className={classes.card}>
@@ -104,25 +102,25 @@ function Post({ post, onLike, onComment }) {
           className={classes.button}
           variant="outlined"
           color="primary"
+          onClick={() => handleTip(post.id, "0.1")}
+        >
+          Tip 0.1 Ether
+        </Button>
+        <Button
+          className={classes.button}
+          variant="outlined"
+          color="primary"
+          onClick={() => handleTip(post.id, "0.5")}
+        >
+          Tip 0.5 Ether
+        </Button>
+        <Button
+          className={classes.button}
+          variant="outlined"
+          color="primary"
           onClick={() => handleTip(post.id, "1")}
         >
           Tip 1 Ether
-        </Button>
-        <Button
-          className={classes.button}
-          variant="outlined"
-          color="primary"
-          onClick={() => handleTip(post.id, "5")}
-        >
-          Tip 5 Ether
-        </Button>
-        <Button
-          className={classes.button}
-          variant="outlined"
-          color="primary"
-          onClick={() => handleTip(post.id, "10")}
-        >
-          Tip 10 Ether
         </Button>
       </div>
       <CardContent className={classes.cardContent}>
@@ -158,6 +156,9 @@ function App() {
   const [description, setDescription] = useState("");
   const [posts, setPosts] = useState([]);
   const [highestLikes, setHighestLikes] = useState(0);
+  const [account, setAccount] = useState("");
+  const [decentragram, setDecentragram] = useState(null);
+  const [imagesCount, setImagesCount] = useState(0);
   const classes = useStyles();
 
   useEffect(() => {
@@ -171,16 +172,23 @@ function App() {
       const web3 = new Web3(provider);
       const accounts = await web3.eth.getAccounts();
       const account = accounts[0];
+      setAccount(account);
 
       const networkId = await web3.eth.net.getId();
-      const networkData = Decentragram.networks[5777];
-  
+      const networkData = Decentragram.networks[networkId];
 
       if (networkData) {
         const decentragram = new web3.eth.Contract(
           Decentragram.abi,
           networkData.address
         );
+        setDecentragram(decentragram);
+        const imagesCount = await decentragram.methods.imageCount().call();
+        setImagesCount(imagesCount);
+        for (var i = 1; i <= imagesCount; i++) {
+          const image = await decentragram.methods.images(i).call();
+          setPosts([...posts, image]);
+        }
       } else {
         window.alert("Decentragram contract not deployed to detected network.");
       }
@@ -189,24 +197,45 @@ function App() {
     }
   };
 
-  const handleFileUpload = (e) => {
-    setFile(e.target.files[0]);
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    setFile(file);
   };
 
   const handleDescriptionChange = (e) => {
     setDescription(e.target.value);
   };
 
-  const handlePostSubmit = (e) => {
+  const handlePostSubmit = async (e) => {
     e.preventDefault();
-    const newPost = {
-      id: Date.now(),
-      image: URL.createObjectURL(file),
-      description: description,
-      likes: 0,
-      comments: [],
-    };
-    setPosts([...posts, newPost]);
+    // const newPost = {
+    //   id: Date.now(),
+    //   image: URL.createObjectURL(file),
+    //   description: description,
+    //   likes: 0,
+    //   comments: [],
+    // };
+    // setPosts([...posts, newPost]);
+
+    // const reader = new window.FileReader();
+    // reader.readAsArrayBuffer(file);
+    // const buffer = null;
+    // reader.onloadend = () => {
+    //   buffer = reader.result;
+    //   console.log("buffer", buffer);
+    // };
+
+    try {
+      // const result = await ipfs.add(buffer);
+      // console.log("Ipfs result", result);
+
+      decentragram.methods
+        .uploadPost("test", description)
+        .send({ from: account });
+    } catch (error) {
+      console.error(error);
+    }
+
     setFile(null);
     setDescription("");
   };
@@ -235,13 +264,10 @@ function App() {
       <Typography variant="h1" align="center" gutterBottom>
         Instagram
       </Typography>
+      <Typography variant="h5" align="center" gutterBottom>
+        Account Hash: {account}
+      </Typography>
       <form className={classes.form} onSubmit={handlePostSubmit}>
-        <input
-          className={classes.input}
-          type="file"
-          onChange={handleFileUpload}
-          id="upload-image"
-        />
         <label htmlFor="upload-image">
           <Button
             className={classes.button}
@@ -252,6 +278,17 @@ function App() {
             Upload Image
           </Button>
         </label>
+        <input
+          className={classes.input}
+          type="file"
+          onChange={handleFileUpload}
+          id="upload-image"
+        />
+        {file == null ? (
+          <div>wait for uploading</div>
+        ) : (
+          <div>File Name: {file.name}</div>
+        )}
         <TextField
           className={classes.textarea}
           variant="outlined"
@@ -279,7 +316,12 @@ function App() {
       <Grid container spacing={3}>
         {sortedPosts.map((post) => (
           <Grid item xs={12} key={post.id}>
-            <Post post={post} onLike={handleLike} onComment={handleComment} />
+            <Post
+              decentragram={decentragram}
+              post={post}
+              onLike={handleLike}
+              onComment={handleComment}
+            />
           </Grid>
         ))}
       </Grid>
