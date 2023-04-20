@@ -51,7 +51,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-function Post({ decentragram, post, onLike, onComment }) {
+function Post({ decentragram, post, onTip, onComment }) {
   const [comment, setComment] = useState("");
   const classes = useStyles();
 
@@ -65,20 +65,6 @@ function Post({ decentragram, post, onLike, onComment }) {
     setComment("");
   };
 
-  const handleTip = async (postId, tipAmount) => {
-    const provider = window.ethereum;
-
-    if (provider) {
-      const web3 = new Web3(provider);
-      const accounts = await web3.eth.getAccounts();
-      const account = accounts[0];
-
-      await decentragram.methods
-        .tipPost(postId)
-        .send({ from: account, value: web3.utils.toWei(tipAmount, "ether") });
-    }
-  };
-
   return (
     <Card className={classes.card}>
       <CardMedia className={classes.image} image={post.image} title="Post" />
@@ -88,21 +74,16 @@ function Post({ decentragram, post, onLike, onComment }) {
         </Typography>
       </CardContent>
       <div>
-        <Button
-          className={classes.button}
-          variant="outlined"
-          color="primary"
-          onClick={() => onLike(post.id)}
-        >
-          Like ({post.likes})
-        </Button>
+        <Typography variant="h6" align="center" gutterBottom color="primary">
+          Tip Amount: {post.tipAmount} ETHER
+        </Typography>
       </div>
       <div>
         <Button
           className={classes.button}
           variant="outlined"
           color="primary"
-          onClick={() => handleTip(post.id, "0.1")}
+          onClick={() => onTip(post.id, "0.1")}
         >
           Tip 0.1 Ether
         </Button>
@@ -110,7 +91,7 @@ function Post({ decentragram, post, onLike, onComment }) {
           className={classes.button}
           variant="outlined"
           color="primary"
-          onClick={() => handleTip(post.id, "0.5")}
+          onClick={() => onTip(post.id, "0.5")}
         >
           Tip 0.5 Ether
         </Button>
@@ -118,7 +99,7 @@ function Post({ decentragram, post, onLike, onComment }) {
           className={classes.button}
           variant="outlined"
           color="primary"
-          onClick={() => handleTip(post.id, "1")}
+          onClick={() => onTip(post.id, "1")}
         >
           Tip 1 Ether
         </Button>
@@ -155,7 +136,8 @@ function App() {
   const [file, setFile] = useState(null);
   const [description, setDescription] = useState("");
   const [posts, setPosts] = useState([]);
-  const [highestLikes, setHighestLikes] = useState(0);
+  // const [sortedPosts, setSortedPosts] = useState([]);
+  const [highestTips, setHighestTips] = useState(0);
   const [account, setAccount] = useState("");
   const [decentragram, setDecentragram] = useState(null);
   const [imagesCount, setImagesCount] = useState(0);
@@ -185,10 +167,29 @@ function App() {
         setDecentragram(decentragram);
         const imagesCount = await decentragram.methods.imageCount().call();
         setImagesCount(imagesCount);
+
+        const tempPosts = [];
         for (var i = 1; i <= imagesCount; i++) {
           const image = await decentragram.methods.images(i).call();
-          setPosts([...posts, image]);
+          console.log(image);
+          const newPost = {
+            id: image.id,
+            image: image.hashCode,
+            description: image.description,
+            tipAmount: image.tipAmount / 1000000000000000000,
+            comments: [],
+          };
+          tempPosts.push(newPost);
         }
+        setPosts(tempPosts);
+
+        setHighestTips(
+          tempPosts.reduce(
+            (acc, post) => (post.tipAmount > acc ? post.tipAmount : acc),
+            0
+          )
+        );
+        console.log(highestTips);
       } else {
         window.alert("Decentragram contract not deployed to detected network.");
       }
@@ -208,29 +209,10 @@ function App() {
 
   const handlePostSubmit = async (e) => {
     e.preventDefault();
-    // const newPost = {
-    //   id: Date.now(),
-    //   image: URL.createObjectURL(file),
-    //   description: description,
-    //   likes: 0,
-    //   comments: [],
-    // };
-    // setPosts([...posts, newPost]);
-
-    // const reader = new window.FileReader();
-    // reader.readAsArrayBuffer(file);
-    // const buffer = null;
-    // reader.onloadend = () => {
-    //   buffer = reader.result;
-    //   console.log("buffer", buffer);
-    // };
-
+    console.log("post! ");
     try {
-      // const result = await ipfs.add(buffer);
-      // console.log("Ipfs result", result);
-
-      decentragram.methods
-        .uploadPost("test", description)
+      await decentragram.methods
+        .uploadPost(file.name, description)
         .send({ from: account });
     } catch (error) {
       console.error(error);
@@ -240,15 +222,49 @@ function App() {
     setDescription("");
   };
 
-  const handleLike = (postId) => {
-    const newPosts = [...posts];
-    const postIndex = newPosts.findIndex((post) => post.id === postId);
-    newPosts[postIndex].likes++;
-    setPosts(newPosts);
-    setHighestLikes(
-      newPosts.reduce((acc, post) => (post.likes > acc ? post.likes : acc), 0)
+  const handleTip = async (postId, tipAmount) => {
+    const provider = window.ethereum;
+    if (provider) {
+      const web3 = new Web3(provider);
+      const accounts = await web3.eth.getAccounts();
+      const account = accounts[0];
+
+      await decentragram.methods
+        .tipPost(postId)
+        .send({ from: account, value: web3.utils.toWei(tipAmount, "ether") });
+    }
+
+    const tempPosts = [];
+        for (var i = 1; i <= imagesCount; i++) {
+          const image = await decentragram.methods.images(i).call();
+          console.log(image);
+          const newPost = {
+            id: image.id,
+            image: image.hashCode,
+            description: image.description,
+            tipAmount: image.tipAmount / 1000000000000000000,
+            comments: [],
+          };
+          tempPosts.push(newPost);
+        }
+        setPosts(tempPosts);
+
+
+    setHighestTips(
+      posts.reduce(
+        (acc, post) => (post.tipAmount > acc ? post.tipAmount : acc),
+        0
+      )
     );
   };
+
+  // const handleTip = (postId) => {
+  //   const newPosts = [...posts];
+  //   const postIndex = newPosts.findIndex((post) => post.id === postId);
+  //   newPosts[postIndex].tipAmount++;
+  //   setPosts(newPosts);
+
+  // };
 
   const handleComment = (postId, comment) => {
     const newPosts = [...posts];
@@ -257,7 +273,7 @@ function App() {
     setPosts(newPosts);
   };
 
-  const sortedPosts = [...posts].sort((a, b) => b.likes - a.likes);
+  const sortedPosts = [...posts].sort((a, b) => b.tipAmount - a.tipAmount);
 
   return (
     <Container className={classes.root}>
@@ -311,7 +327,7 @@ function App() {
       </form>
       <hr />
       <Typography variant="h2" align="center" gutterBottom>
-        Most Popular {highestLikes} likes
+        The Hightest Tip: {highestTips} Ether
       </Typography>
       <Grid container spacing={3}>
         {sortedPosts.map((post) => (
@@ -319,7 +335,7 @@ function App() {
             <Post
               decentragram={decentragram}
               post={post}
-              onLike={handleLike}
+              onTip={handleTip}
               onComment={handleComment}
             />
           </Grid>
